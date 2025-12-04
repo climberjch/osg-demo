@@ -1,0 +1,21 @@
+# Visual Studio 生成的缓存目录
+.vs/
+
+# 本地第三方库
+thirdparty/
+
+# VS build 目录（如果你有的话）
+Debug/
+Release/
+x64/
+build/
+CMakeFiles/
+CMakeCache.txt
+
+# 其他建议忽略的文件
+*.sln
+*.vcxproj*
+*.user
+*.obj
+*.pdb
+*.log
