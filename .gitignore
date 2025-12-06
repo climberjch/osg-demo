@@ -10,6 +10,8 @@ Release/
 x64/
 build/
 CMakeFiles/
+bin/
+out/
 CMakeCache.txt
 
 # 其他建议忽略的文件
