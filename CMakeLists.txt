@@ -8,6 +8,21 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+
+# ====== 导入 QT 5.15.12
+set(QT_ROOT "${PROJECT_SOURCE_DIR}/thirdparty/Qt-5.15.12" CACHE PATH "Qt 5.15.12 MSVC root")
+message(STATUS "Using QT_ROOT = ${QT_ROOT}")
+set(Qt5_DIR "${QT_ROOT}/lib/cmake/Qt5" CACHE PATH "Qt5 CMake package dir")
+list(APPEND CMAKE_PREFIX_PATH "${QT_ROOT}")
+
+# Qt Widgets + OpenGL（QOpenGLWindow / QOpenGLWidget 用得到）
+find_package(Qt5 REQUIRED COMPONENTS Widgets OpenGL)
+
+# 打开 CMake 中需要 QT 打开的开关
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON)
+
 # ====== 1. OSG 第三方根目录（vcpkg export 出来的 osg 包） ======
 set(OSG_THIRDPARTY_ROOT "${PROJECT_SOURCE_DIR}/thirdparty/osg-3.6.5")
 message(STATUS "Using OSG_THIRDPARTY_ROOT = ${OSG_THIRDPARTY_ROOT}")
@@ -30,10 +45,19 @@ include_directories("${OSG_THIRDPARTY_ROOT}/include")
 set(OSG_LIB_RELEASE_DIR "${OSG_THIRDPARTY_ROOT}/lib")
 set(OSG_LIB_DEBUG_DIR   "${OSG_THIRDPARTY_ROOT}/debug/lib")
 
+
 # 源文件
 add_executable(my_osg_export_demo
     src/main.cpp
 )
+
+# include QT 的头文件
+ target_include_directories(my_osg_export_demo 
+ PRIVATE "${QT_ROOT}/include"
+)
+
+# 链接 QT 
+target_link_libraries(my_osg_export_demo PRIVATE QT5::Qt5::Widgets QT5::Qt5::OpenGL)
 
 # ====== 3. Debug/Release 分别链接各自的 .lib ======
 # 说明：
@@ -50,13 +74,13 @@ target_link_libraries(my_osg_export_demo PRIVATE
     "$<$<CONFIG:Release>:${OSG_LIB_RELEASE_DIR}/osgDB.lib>"
 
     "$<$<CONFIG:Debug>:${OSG_LIB_DEBUG_DIR}/osgViewerd.lib>"
-    "$<$<CONFIG:Release>:${OSG_LIB_RELEASE_DIR}/osgViewerd.lib>"
+    "$<$<CONFIG:Release>:${OSG_LIB_RELEASE_DIR}/osgViewer.lib>"
 
     "$<$<CONFIG:Debug>:${OSG_LIB_DEBUG_DIR}/OpenThreadsd.lib>"
-    "$<$<CONFIG:Release>:${OSG_LIB_RELEASE_DIR}/OpenThreadsd.lib>"
+    "$<$<CONFIG:Release>:${OSG_LIB_RELEASE_DIR}/OpenThreads.lib>"
 
     "$<$<CONFIG:Debug>:${OSG_LIB_DEBUG_DIR}/osgAnimationd.lib>"
-    "$<$<CONFIG:Release>:${OSG_LIB_RELEASE_DIR}/osgAnimationd.lib>"
+    "$<$<CONFIG:Release>:${OSG_LIB_RELEASE_DIR}/osgAnimation.lib>"
 
     "$<$<CONFIG:Debug>:${OSG_LIB_DEBUG_DIR}/osgUtild.lib>"
     "$<$<CONFIG:Release>:${OSG_LIB_RELEASE_DIR}/osgUtil.lib>"
