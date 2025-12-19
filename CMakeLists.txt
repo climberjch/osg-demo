@@ -1,88 +1,130 @@
 cmake_minimum_required(VERSION 3.20)
-
 project(MyOsgDemo LANGUAGES CXX)
 
-# 让 VS 有 compile_commands.json，IntelliSense 补全更准
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# =======================
+# 输出目录：按配置隔离（推荐）
+# =======================
+if(CMAKE_CONFIGURATION_TYPES) # VS / Multi-config
+  foreach(cfg IN LISTS CMAKE_CONFIGURATION_TYPES)
+    string(TOUPPER "${cfg}" CFG_UP)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${CFG_UP} "${CMAKE_SOURCE_DIR}/bin/${cfg}")
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${CFG_UP} "${CMAKE_SOURCE_DIR}/bin/${cfg}")
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${CFG_UP} "${CMAKE_SOURCE_DIR}/lib/${cfg}")
+  endforeach()
+else() # Ninja / Makefiles
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
+  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
+  set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/lib")
+endif()
 
-# ====== 导入 QT 5.15.12
+# =======================
+# Qt 5.15.12
+# =======================
 set(QT_ROOT "${PROJECT_SOURCE_DIR}/thirdparty/Qt-5.15.12" CACHE PATH "Qt 5.15.12 MSVC root")
 message(STATUS "Using QT_ROOT = ${QT_ROOT}")
-set(Qt5_DIR "${QT_ROOT}/lib/cmake/Qt5" CACHE PATH "Qt5 CMake package dir")
-list(APPEND CMAKE_PREFIX_PATH "${QT_ROOT}")
 
-# Qt Widgets + OpenGL（QOpenGLWindow / QOpenGLWidget 用得到）
+list(APPEND CMAKE_PREFIX_PATH "${QT_ROOT}")
 find_package(Qt5 REQUIRED COMPONENTS Widgets OpenGL)
 
-# 打开 CMake 中需要 QT 打开的开关
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
-# ====== 1. OSG 第三方根目录（vcpkg export 出来的 osg 包） ======
-set(OSG_THIRDPARTY_ROOT "${PROJECT_SOURCE_DIR}/thirdparty/osg-3.6.5")
+# =======================
+# OSG thirdparty（vcpkg export 出来的目录）
+# =======================
+set(OSG_THIRDPARTY_ROOT "${PROJECT_SOURCE_DIR}/thirdparty/osg-3.6.5" CACHE PATH "OSG thirdparty root")
 message(STATUS "Using OSG_THIRDPARTY_ROOT = ${OSG_THIRDPARTY_ROOT}")
 
-# 统一把可执行文件都放到项目根的 bin 目录，Debug/Release 一致
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY            "${CMAKE_SOURCE_DIR}/bin")
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG      "${CMAKE_SOURCE_DIR}/bin")
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE    "${CMAKE_SOURCE_DIR}/bin")
-
-# ====== 2. 头文件路径 ======
-include_directories("${OSG_THIRDPARTY_ROOT}/include")
-
-# 假设 vcpkg export 目录结构大致如下（很典型）：
-#   osg-3.6.5/
-#     include/
-#     lib/        <- Release .lib
-#     debug/lib/  <- Debug   .lib
-#     bin/        <- Release .dll
-#     debug/bin/  <- Debug   .dll
 set(OSG_LIB_RELEASE_DIR "${OSG_THIRDPARTY_ROOT}/lib")
 set(OSG_LIB_DEBUG_DIR   "${OSG_THIRDPARTY_ROOT}/debug/lib")
+set(OSG_BIN_RELEASE_DIR "${OSG_THIRDPARTY_ROOT}/bin")
+set(OSG_BIN_DEBUG_DIR   "${OSG_THIRDPARTY_ROOT}/debug/bin")
 
+# OSG 插件目录名（通常是 osgPlugins-3.6.5）
+set(OSG_PLUGIN_SUBDIR "osgPlugins-3.6.5" CACHE STRING "OSG plugin folder name")
+set(OSG_PLUGIN_RELEASE_DIR "${OSG_THIRDPARTY_ROOT}/plugins/${OSG_PLUGIN_SUBDIR}")
+set(OSG_PLUGIN_DEBUG_DIR   "${OSG_THIRDPARTY_ROOT}/debug/plugins/${OSG_PLUGIN_SUBDIR}")
 
-# 源文件
+# =======================
+# 可执行文件
+# =======================
 add_executable(my_osg_export_demo
-    src/main.cpp
+  src/main.cpp
 )
 
-# include QT 的头文件
- target_include_directories(my_osg_export_demo 
- PRIVATE "${QT_ROOT}/include"
+# OSG include 用 target 级别，别用 include_directories 污染全局
+target_include_directories(my_osg_export_demo PRIVATE
+  "${OSG_THIRDPARTY_ROOT}/include"
 )
 
-# 链接 QT 
-target_link_libraries(my_osg_export_demo PRIVATE QT5::Qt5::Widgets QT5::Qt5::OpenGL)
-
-# ====== 3. Debug/Release 分别链接各自的 .lib ======
-# 说明：
-# - 如果你发现 debug 版库名是 osgd.lib / osgDBd.lib 这种，把下面的 osg.lib 换成 osgd.lib 即可。
-# - 这里用的是“带路径的库文件”，所以不再需要 link_directories。
+# Qt link（Qt 的 include 路径会自动带上，一般不需要手动 target_include_directories Qt）
 target_link_libraries(my_osg_export_demo PRIVATE
-    "$<$<CONFIG:Debug>:${OSG_LIB_DEBUG_DIR}/osgd.lib>"
-    "$<$<CONFIG:Release>:${OSG_LIB_RELEASE_DIR}/osg.lib>"
-
-    "$<$<CONFIG:Debug>:${OSG_LIB_DEBUG_DIR}/osgGAd.lib>"
-    "$<$<CONFIG:Release>:${OSG_LIB_RELEASE_DIR}/osgGA.lib>"
-
-    "$<$<CONFIG:Debug>:${OSG_LIB_DEBUG_DIR}/osgDBd.lib>"
-    "$<$<CONFIG:Release>:${OSG_LIB_RELEASE_DIR}/osgDB.lib>"
-
-    "$<$<CONFIG:Debug>:${OSG_LIB_DEBUG_DIR}/osgViewerd.lib>"
-    "$<$<CONFIG:Release>:${OSG_LIB_RELEASE_DIR}/osgViewer.lib>"
-
-    "$<$<CONFIG:Debug>:${OSG_LIB_DEBUG_DIR}/OpenThreadsd.lib>"
-    "$<$<CONFIG:Release>:${OSG_LIB_RELEASE_DIR}/OpenThreads.lib>"
-
-    "$<$<CONFIG:Debug>:${OSG_LIB_DEBUG_DIR}/osgAnimationd.lib>"
-    "$<$<CONFIG:Release>:${OSG_LIB_RELEASE_DIR}/osgAnimation.lib>"
-
-    "$<$<CONFIG:Debug>:${OSG_LIB_DEBUG_DIR}/osgUtild.lib>"
-    "$<$<CONFIG:Release>:${OSG_LIB_RELEASE_DIR}/osgUtil.lib>"
+  Qt5::Widgets
+  Qt5::OpenGL
 )
 
+# =======================
+# 链接 OSG libs（Debug/Release 分离）
+# =======================
+target_link_libraries(my_osg_export_demo PRIVATE
+  "$<$<CONFIG:Debug>:${OSG_LIB_DEBUG_DIR}/osgd.lib>"
+  "$<$<CONFIG:Release>:${OSG_LIB_RELEASE_DIR}/osg.lib>"
+
+  "$<$<CONFIG:Debug>:${OSG_LIB_DEBUG_DIR}/osgGAd.lib>"
+  "$<$<CONFIG:Release>:${OSG_LIB_RELEASE_DIR}/osgGA.lib>"
+
+  "$<$<CONFIG:Debug>:${OSG_LIB_DEBUG_DIR}/osgDBd.lib>"
+  "$<$<CONFIG:Release>:${OSG_LIB_RELEASE_DIR}/osgDB.lib>"
+
+  "$<$<CONFIG:Debug>:${OSG_LIB_DEBUG_DIR}/osgViewerd.lib>"
+  "$<$<CONFIG:Release>:${OSG_LIB_RELEASE_DIR}/osgViewer.lib>"
+
+  "$<$<CONFIG:Debug>:${OSG_LIB_DEBUG_DIR}/OpenThreadsd.lib>"
+  "$<$<CONFIG:Release>:${OSG_LIB_RELEASE_DIR}/OpenThreads.lib>"
+
+  "$<$<CONFIG:Debug>:${OSG_LIB_DEBUG_DIR}/osgAnimationd.lib>"
+  "$<$<CONFIG:Release>:${OSG_LIB_RELEASE_DIR}/osgAnimation.lib>"
+
+  "$<$<CONFIG:Debug>:${OSG_LIB_DEBUG_DIR}/osgUtild.lib>"
+  "$<$<CONFIG:Release>:${OSG_LIB_RELEASE_DIR}/osgUtil.lib>"
+)
+
+# =======================
+# 部署：Qt 用 windeployqt
+# =======================
+#if(WIN32)
+  #set(WINDEPLOYQT "${QT_ROOT}/bin/windeployqt.exe")
+
+  #add_custom_command(TARGET my_osg_export_demo POST_BUILD
+   # COMMAND "${WINDEPLOYQT}"
+    #  $<$<CONFIG:Debug>:--debug>$<$<CONFIG:Release>:--release>
+      #--no-translations
+     # --no-system-d3d-compiler
+     # "$<TARGET_FILE:my_osg_export_demo>"
+   # VERBATIM
+#  )
+#endif()
+
+# =======================
+# 部署：OSG 运行时 dll + 插件 + 插件依赖（用你的脚本）
+# =======================
+if(WIN32)
+  add_custom_command(TARGET my_osg_export_demo POST_BUILD
+    COMMAND "${CMAKE_COMMAND}"
+      -DEXE_PATH="$<TARGET_FILE:my_osg_export_demo>"
+      -DDST_DIR="$<TARGET_FILE_DIR:my_osg_export_demo>"
+      -DSEARCH_DIRS="${OSG_BIN_RELEASE_DIR};${OSG_BIN_DEBUG_DIR};${OSG_PLUGIN_RELEASE_DIR};${OSG_PLUGIN_DEBUG_DIR}"
+      -DPLUGIN_DIR="$<IF:$<CONFIG:Debug>,${OSG_PLUGIN_DEBUG_DIR},${OSG_PLUGIN_RELEASE_DIR}>"
+      -DPLUGIN_DST_SUBDIR="${OSG_PLUGIN_SUBDIR}"
+      -DCOPY_PDB=1
+      # 如果你不想让脚本把 Qt 的 dll 也复制一份，可以打开下面这条（按你路径调整）
+       -DEXCLUDE_REGEXES=".*[\\\\/]thirdparty[\\\\/]Qt-5\\.15\\.12[\\\\/].*"
+      -P "${CMAKE_SOURCE_DIR}/cmake/copy_runtime_deps.cmake"
+    VERBATIM
+  )
+endif()

@@ -13,6 +13,7 @@ CMakeFiles/
 bin/
 out/
 CMakeCache.txt
+CMakeSettings.json
 
 # 其他建议忽略的文件
 *.sln
